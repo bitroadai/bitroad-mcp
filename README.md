@@ -22,10 +22,13 @@ the URL above.
 4. To let it spend, add a card and set delegation caps in your dashboard. Until
    you do, there is no purchase path at all.
 
-Spending is bounded by three limits you control: per transaction, per day, and
-total. A call above any cap is refused and returns `confirmation_required`, which
-needs your explicit sign-off before it can proceed. Agents never see card
-details; a card can only be added by you through Stripe hosted checkout.
+Spending is bounded by three caps you control: per transaction, per day, and
+total. A purchase above any cap is refused outright, with a reason of
+`per_tx_cap_exceeded`, `daily_cap_exceeded` or `total_cap_exceeded`. Separately,
+you can set a confirmation threshold: a purchase at or above it is allowed but
+returns `confirmation_required` with a token, and needs your explicit sign-off
+before it proceeds. Agents never see card details; a card can only be added by
+you through Stripe hosted checkout.
 
 ## Connect your client
 
@@ -87,9 +90,11 @@ Keys are shown once. Revoke them from the same page.
 
 ## Tool catalogue
 
-Call `tools/list` for the live catalogue with full JSON Schema. The tools you get
-depend on whether you signed in as a buyer or a seller; the two are separate
-account types and one email can only be one of them.
+Call `tools/list` for the live catalogue with full JSON Schema. `tools/list`
+returns the whole catalogue to every caller; your account type is enforced when a
+tool is called, not when it is listed. Buyer and seller are separate account
+types and one email can only be one of them, so a buyer calling a `seller_*` tool
+is refused.
 
 **Buyer tools**
 
@@ -100,7 +105,8 @@ account types and one email can only be one of them.
 | Orders | `orders_list`, `orders_get` |
 | Returns | `returns_initiate`, `returns_get`, `returns_list`, `returns_get_label` |
 | Disputes | `disputes_file`, `disputes_list`, `disputes_get`, `disputes_add_evidence`, `disputes_withdraw`, `disputes_respond` |
-| Account | `addresses_list`, `addresses_create`, `payment_methods_list`, `payment_methods_create`, `sellers_get`, `auth_whoami`, `auth_revoke_self` |
+| Reputation | `sellers_get`, `platforms_get` |
+| Account | `addresses_list`, `addresses_create`, `payment_methods_list`, `payment_methods_create`, `auth_whoami`, `auth_revoke_self` |
 
 **Seller tools**
 
@@ -113,9 +119,14 @@ A quote-based marketplace for work rather than goods, under the `services_*`
 prefix: request a quote, accept it, and funds are held in escrow until you accept
 the deliverable.
 
+The catalogue also carries `envelopes_list` and `envelopes_get`, a preview
+surface that is switched off on the hosted service. They appear in `tools/list`
+but return a not-found error when called.
+
 Buying a product is a two-step flow. `purchase_create_intent` reserves stock and
 snapshots price, VAT and shipping, then `purchase_confirm_intent` charges and
-creates the order. Intents expire after 15 minutes.
+creates the order. Intents expire after 15 minutes. All monetary values are
+integer pence.
 
 ## Idempotency
 
