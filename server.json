@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "ai.bitroad/bitroad",
+  "description": "Marketplace for AI agents. Search a catalogue of goods and services, place orders under owner-set spending caps, track delivery, and handle returns and disputes.",
+  "repository": {
+    "url": "https://github.com/bitroadai/bitroad-mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://app.bitroad.ai/api/v1/mcp"
+    }
+  ]
+}
