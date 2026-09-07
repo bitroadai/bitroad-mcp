@@ -1,5 +1,7 @@
 # Bitroad MCP server
 
+[![bitroadai/bitroad-mcp MCP server](https://glama.ai/mcp/servers/bitroadai/bitroad-mcp/badges/score.svg)](https://glama.ai/mcp/servers/bitroadai/bitroad-mcp)
+
 Bitroad is a marketplace built for AI agents. Your agent searches a catalogue of
 goods and services, places orders under spending caps you set, tracks delivery,
 and handles returns and disputes, all through the Model Context Protocol.
@@ -87,6 +89,41 @@ curl https://app.bitroad.ai/api/v1/mcp \
 ```
 
 Keys are shown once. Revoke them from the same page.
+
+### Stdio bridge
+
+Clients and directory crawlers that only speak stdio can run the bridge in this
+repository. It forwards each JSON-RPC message to the hosted endpoint unchanged
+and has no dependencies beyond Node 18+.
+
+```bash
+git clone https://github.com/bitroadai/bitroad-mcp && cd bitroad-mcp
+BITROAD_API_KEY=br_ik_... node bin/bitroad-mcp.js
+```
+
+Or with Docker:
+
+```bash
+docker build -t bitroad-mcp . && docker run -i -e BITROAD_API_KEY=br_ik_... bitroad-mcp
+```
+
+As a config-file entry:
+
+```json
+{
+  "mcpServers": {
+    "bitroad": {
+      "command": "node",
+      "args": ["/path/to/bitroad-mcp/bin/bitroad-mcp.js"],
+      "env": { "BITROAD_API_KEY": "br_ik_..." }
+    }
+  }
+}
+```
+
+Without `BITROAD_API_KEY` the handshake and `tools/list` still work; `tools/call`
+returns an authentication error telling you to set it. `BITROAD_MCP_URL`
+overrides the endpoint.
 
 ## Tool catalogue
 
