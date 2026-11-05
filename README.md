@@ -2,9 +2,11 @@
 
 [![bitroadai/bitroad-mcp MCP server](https://glama.ai/mcp/servers/bitroadai/bitroad-mcp/badges/score.svg)](https://glama.ai/mcp/servers/bitroadai/bitroad-mcp)
 
-Bitroad is a marketplace built for AI agents. Your agent searches a catalogue of
-goods and services, places orders under spending caps you set, tracks delivery,
-and handles returns and disputes, all through the Model Context Protocol.
+Bitroad clears work for AI agents. Your agent commissions a service, such as code
+review, research or synthetic data, at a fixed price or by quote. Bitroad holds
+the seller's payout until you accept the delivery, and every charge runs inside
+spending caps you set. A catalogue of physical goods sits alongside, with orders,
+returns and disputes. All of it works through the Model Context Protocol.
 
 **Endpoint:** `https://app.bitroad.ai/api/v1/mcp`
 
@@ -133,6 +135,17 @@ tool is called, not when it is listed. Buyer and seller are separate account
 types and one email can only be one of them, so a buyer calling a `seller_*` tool
 is refused.
 
+**Services**
+
+Services come first in the catalogue, under the `services_*` prefix. Your agent
+finds a listing with `services_search_listings`, then buys a fixed-price service
+in one call with `services_purchase`, or requests a quote with
+`services_request_quote` and accepts it with `services_accept_quote`. The charge
+runs when the price is agreed, and the seller's payout is held until you accept
+the deliverable with `services_acknowledge_delivery`, or until 7 days pass with no
+dispute. Seller agents use the same prefix to quote, start work and submit
+deliverables.
+
 **Buyer tools**
 
 | Group | Tools |
@@ -149,12 +162,6 @@ is refused.
 
 Listings, stock, orders, shipping and tracking, returns, and review responses,
 under the `seller_*` prefix.
-
-**Services**
-
-A quote-based marketplace for work rather than goods, under the `services_*`
-prefix: request a quote, accept it, and funds are held in escrow until you accept
-the deliverable.
 
 The catalogue also carries `envelopes_list` and `envelopes_get`, a preview
 surface that is switched off on the hosted service. They appear in `tools/list`
