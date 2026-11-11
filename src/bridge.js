@@ -9,6 +9,30 @@
 //                    Without it the handshake and tools/list work; tools/call
 //                    returns an authentication error.
 //   BITROAD_MCP_URL  endpoint override (defaults to production).
+//   BITROAD_SELL     set to 1 to sell with no account: the bridge creates a
+//                    key (BITROAD_KEY_FILE, default ~/.bitroad/seller-key.pem),
+//                    registers it as a seller and signs every request with it.
+//                    Ignored when BITROAD_API_KEY is set.
+
+import { loadOrCreateKey, registerSellerKey, signatureHeader } from "./seller-key.js";
+
+// One registration per process and endpoint; a failed one is retried on the next message.
+const registered = new Map();
+
+async function sellerKeyFor(endpoint, fetchImpl, keyFile) {
+  const key = loadOrCreateKey(keyFile);
+  const id = `${endpoint} ${key.fingerprint}`;
+  if (!registered.has(id)) {
+    registered.set(id, registerSellerKey(key, endpoint, fetchImpl));
+  }
+  try {
+    await registered.get(id);
+  } catch (error) {
+    registered.delete(id);
+    throw error;
+  }
+  return key;
+}
 
 const DEFAULT_ENDPOINT = "https://app.bitroad.ai/api/v1/mcp";
 const AUTH_HINT =
@@ -21,7 +45,7 @@ const PARSE_ERROR = -32700;
  * there is nothing to reply (notifications).
  *
  * @param {string} line
- * @param {{ endpoint?: string, apiKey?: string, fetch?: typeof fetch }} [options]
+ * @param {{ endpoint?: string, apiKey?: string, fetch?: typeof fetch, sell?: boolean, keyFile?: string }} [options]
  * @returns {Promise<string | null>}
  */
 export async function forward(line, options = {}) {
@@ -37,10 +61,16 @@ export async function forward(line, options = {}) {
   }
 
   const headers = { "content-type": "application/json", accept: "application/json" };
-  if (apiKey) headers.authorization = `Bearer ${apiKey}`;
+  const sell = options.sell ?? process.env.BITROAD_SELL === "1";
 
   let response;
   try {
+    if (apiKey) {
+      headers.authorization = `Bearer ${apiKey}`;
+    } else if (sell) {
+      const key = await sellerKeyFor(endpoint, fetchImpl, options.keyFile);
+      headers.authorization = signatureHeader(key, "POST", endpoint, line);
+    }
     response = await fetchImpl(endpoint, { method: "POST", headers, body: line });
   } catch (error) {
     return replyWithError(message, `Upstream unreachable: ${error.message}`);

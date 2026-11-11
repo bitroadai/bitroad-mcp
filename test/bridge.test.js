@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash, createPublicKey, verify } from "node:crypto";
+import { mkdtempSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { forward } from "../src/bridge.js";
@@ -48,5 +52,48 @@ test("bridge forwards requests, drops notifications, and maps 401 to a JSON-RPC 
     assert.equal(garbage.error.code, -32700);
   } finally {
     close();
+  }
+});
+
+// Sell mode: the bridge makes a key, registers it once, and signs each call
+// so that the documented canonical string verifies under the registered key.
+test("sell mode registers a new key once and signs every request with it", async () => {
+  const seen = [];
+  let publicKey;
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      const fields = Object.fromEntries(
+        req.headers.authorization.replace("Signature ", "").split(",").map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)]),
+      );
+      if (req.url === "/api/v1/keys") {
+        const raw = Buffer.from(JSON.parse(body).public_key, "hex");
+        publicKey = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: raw.toString("base64url") }, format: "jwk" });
+        assert.equal(fields.keyid, createHash("sha256").update(raw).digest("hex"));
+      }
+      const bodyHash = createHash("sha256").update(body).digest("hex");
+      const message = [req.method, req.url, fields.ts, fields.nonce, bodyHash].join("\n");
+      seen.push({ url: req.url, valid: verify(null, Buffer.from(message), publicKey, Buffer.from(fields.sig, "base64")) });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const endpoint = `http://127.0.0.1:${server.address().port}/api/v1/mcp`;
+  const keyFile = join(mkdtempSync(join(tmpdir(), "bitroad-")), "nested", "seller-key.pem");
+  try {
+    const call = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"auth_whoami"}}';
+    await forward(call, { endpoint, apiKey: "", sell: true, keyFile });
+    await forward(call, { endpoint, apiKey: "", sell: true, keyFile });
+
+    assert.deepEqual(seen, [
+      { url: "/api/v1/keys", valid: true },
+      { url: "/api/v1/mcp", valid: true },
+      { url: "/api/v1/mcp", valid: true },
+    ]);
+    assert.equal(statSync(keyFile).mode & 0o777, 0o600);
+  } finally {
+    server.close();
   }
 });

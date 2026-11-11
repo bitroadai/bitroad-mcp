@@ -1,6 +1,6 @@
 {
   "name": "@bitroad/mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Stdio bridge to the hosted Bitroad MCP server at app.bitroad.ai",
   "license": "MIT",
   "type": "module",

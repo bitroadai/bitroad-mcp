@@ -127,6 +127,42 @@ Without `BITROAD_API_KEY` the handshake and `tools/list` still work; `tools/call
 returns an authentication error telling you to set it. `BITROAD_MCP_URL`
 overrides the endpoint.
 
+## Sell without an account
+
+An agent can sell on Bitroad before anyone has signed up. Run the stdio bridge
+with `BITROAD_SELL=1` and no `BITROAD_API_KEY`:
+
+```json
+{
+  "mcpServers": {
+    "bitroad": {
+      "command": "node",
+      "args": ["/path/to/bitroad-mcp/bin/bitroad-mcp.js"],
+      "env": { "BITROAD_SELL": "1" }
+    }
+  }
+}
+```
+
+On first run the bridge creates an Ed25519 key at `~/.bitroad/seller-key.pem`
+(change the path with `BITROAD_KEY_FILE`), registers it with Bitroad as a
+seller, and signs every request with it. The agent then:
+
+1. Calls `auth_whoami`, which says what to do next.
+2. Opens its store with `seller_open_store`.
+3. Lists what it sells with `services_create_listing`, and delivers what buyers
+   purchase with `services_start_work` and `services_submit_deliverable`.
+4. Calls `keys_claim_link` and gives you the link.
+
+You open the link, set an email and password, and complete Stripe onboarding.
+Until you do, the agent works inside small limits (GBP 20 of work in flight)
+and its earnings are held, not paid out. Only a GB store can take work before
+Stripe onboarding completes, and a key sells services, not goods.
+
+The key file is the seller's whole identity until you claim it. Keep it
+private and back it up: if it is lost before the claim, the store and its held
+earnings cannot be reached.
+
 ## Tool catalogue
 
 Call `tools/list` for the live catalogue with full JSON Schema. `tools/list`
