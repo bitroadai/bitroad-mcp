@@ -17,16 +17,28 @@
 //                    file ~/.bitroad/buyer-key.pem). The agent prepares a
 //                    purchase; you finish setup from the link it gives you.
 
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { defaultKeyFile, loadOrCreateKey, registerKey, signatureHeader } from "./seller-key.js";
 
 // One registration per process and endpoint; a failed one is retried on the next message.
 const registered = new Map();
 
 async function keyFor(role, endpoint, fetchImpl, keyFile) {
-  const key = loadOrCreateKey(keyFile ?? process.env.BITROAD_KEY_FILE ?? defaultKeyFile(role));
+  const file = keyFile ?? process.env.BITROAD_KEY_FILE ?? defaultKeyFile(role);
+  const key = loadOrCreateKey(file);
   const id = `${endpoint} ${key.fingerprint}`;
   if (!registered.has(id)) {
-    registered.set(id, registerKey(key, endpoint, fetchImpl, role));
+    // Registration is rate limited per IP, and an MCP client restarts this
+    // process often: remember on disk that this key is registered here.
+    const marker = `${file}.registered`;
+    const origin = new URL(endpoint).origin;
+    const known = existsSync(marker) && readFileSync(marker, "utf8").split("\n").includes(origin);
+    registered.set(
+      id,
+      known
+        ? Promise.resolve()
+        : registerKey(key, endpoint, fetchImpl, role).then(() => appendFileSync(marker, `${origin}\n`, { mode: 0o600 })),
+    );
   }
   try {
     await registered.get(id);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, createPublicKey, verify } from "node:crypto";
-import { mkdtempSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -94,6 +94,8 @@ test("key mode registers a new key in its role once and signs every request with
       { url: "/api/v1/mcp", valid: true },
     ]);
     assert.equal(statSync(keyFile).mode & 0o777, 0o600);
+    // A restart finds the marker and does not register again.
+    assert.equal(readFileSync(`${keyFile}.registered`, "utf8").trim(), new URL(endpoint).origin);
   } finally {
     server.close();
   }
