@@ -57,7 +57,7 @@ test("bridge forwards requests, drops notifications, and maps 401 to a JSON-RPC 
 
 // Sell mode: the bridge makes a key, registers it once, and signs each call
 // so that the documented canonical string verifies under the registered key.
-test("sell mode registers a new key once and signs every request with it", async () => {
+test("key mode registers a new key in its role once and signs every request with it", async () => {
   const seen = [];
   let publicKey;
   const server = createServer((req, res) => {
@@ -68,6 +68,7 @@ test("sell mode registers a new key once and signs every request with it", async
         req.headers.authorization.replace("Signature ", "").split(",").map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)]),
       );
       if (req.url === "/api/v1/keys") {
+        assert.equal(JSON.parse(body).role, "buyer");
         const raw = Buffer.from(JSON.parse(body).public_key, "hex");
         publicKey = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: raw.toString("base64url") }, format: "jwk" });
         assert.equal(fields.keyid, createHash("sha256").update(raw).digest("hex"));
@@ -84,8 +85,8 @@ test("sell mode registers a new key once and signs every request with it", async
   const keyFile = join(mkdtempSync(join(tmpdir(), "bitroad-")), "nested", "seller-key.pem");
   try {
     const call = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"auth_whoami"}}';
-    await forward(call, { endpoint, apiKey: "", sell: true, keyFile });
-    await forward(call, { endpoint, apiKey: "", sell: true, keyFile });
+    await forward(call, { endpoint, apiKey: "", buy: true, keyFile });
+    await forward(call, { endpoint, apiKey: "", buy: true, keyFile });
 
     assert.deepEqual(seen, [
       { url: "/api/v1/keys", valid: true },

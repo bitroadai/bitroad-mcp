@@ -20,11 +20,20 @@ the URL above.
 
 ## How it works
 
+Most people start from an account:
+
 1. Create a buyer account at [buy.bitroad.ai](https://buy.bitroad.ai/sign-up).
 2. Add the endpoint to your MCP client and approve the consent screen.
 3. Your agent can now browse and read orders immediately.
 4. To let it spend, add a card and set delegation caps in your dashboard. Until
-   you do, there is no purchase path at all.
+   you do, nothing can be charged.
+
+An agent can also start with no account, through the stdio bridge in this
+repository. It can open a store and sell services
+([Sell without an account](#sell-without-an-account)), or prepare a purchase
+for you to approve ([Buy without an account](#buy-without-an-account)).
+Connector-UI clients such as Claude.ai and ChatGPT cannot hold a key, so they
+start from an account.
 
 Spending is bounded by three caps you control: per transaction, per day, and
 total. A purchase above any cap is refused outright, with a reason of
@@ -80,7 +89,8 @@ connectors), and Copilot take the endpoint as a pasted URL:
 ### Bearer key instead of OAuth
 
 For headless clients and your own agent code, mint an agent key at
-`/buyer/instances/new` and send it as a header:
+`/buyer/instances/new` (or `/sellers/<store>/agents/new` for a seller) and send
+it as a header:
 
 ```bash
 curl https://app.bitroad.ai/api/v1/mcp \
@@ -123,9 +133,11 @@ As a config-file entry:
 }
 ```
 
-Without `BITROAD_API_KEY` the handshake and `tools/list` still work; `tools/call`
-returns an authentication error telling you to set it. `BITROAD_MCP_URL`
-overrides the endpoint.
+Without `BITROAD_API_KEY` the handshake and `tools/list` still work, and so do
+the public listing reads `services_search_listings` and `services_get_listing`.
+Any other `tools/call` returns an authentication error, unless you set
+`BITROAD_SELL=1` or `BITROAD_BUY=1` so that the bridge signs requests with its
+own key (see the next two sections). `BITROAD_MCP_URL` overrides the endpoint.
 
 ## Sell without an account
 
@@ -163,13 +175,30 @@ The key file is the seller's whole identity until you claim it. Keep it
 private and back it up: if it is lost before the claim, the store and its held
 earnings cannot be reached.
 
+## Buy without an account
+
+The same works for a buyer agent. Run the bridge with `BITROAD_BUY=1` in place
+of `BITROAD_SELL=1` (key file `~/.bitroad/buyer-key.pem`). The agent then:
+
+1. Searches and picks a listing (`services_search_listings`).
+2. Calls `services_purchase`. Nothing is charged: the purchase is saved and the
+   reply tells the agent to ask you to finish setup.
+3. Calls `keys_claim_link` and gives you the link.
+
+You open the link, which shows what the agent wants to buy. You set an email
+and password, add a card, set what the agent may spend, and approve the
+purchase. Only then is the card charged. A waiting purchase is kept for seven
+days, and an agent may have three waiting at once.
+
 ## Tool catalogue
 
 Call `tools/list` for the live catalogue with full JSON Schema. `tools/list`
 returns the whole catalogue to every caller; your account type is enforced when a
 tool is called, not when it is listed. Buyer and seller are separate account
 types and one email can only be one of them, so a buyer calling a `seller_*` tool
-is refused.
+is refused. Two tools, `seller_open_store` and `keys_claim_link`, work only for
+an agent that signs with its own key ([Sell without an account](#sell-without-an-account),
+[Buy without an account](#buy-without-an-account)).
 
 **Services**
 
@@ -177,7 +206,8 @@ Services come first in the catalogue, under the `services_*` prefix. Your agent
 finds a listing with `services_search_listings`, then buys a fixed-price service
 in one call with `services_purchase`, or requests a quote with
 `services_request_quote` and accepts it with `services_accept_quote`. The charge
-runs when the price is agreed, and the seller's payout is held until you accept
+runs when the price is agreed (for a buyer key with no account, when you approve
+the purchase), and the seller's payout is held until you accept
 the deliverable with `services_acknowledge_delivery`, or until 7 days pass with no
 dispute. Seller agents use the same prefix to quote, start work and submit
 deliverables.

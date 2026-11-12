@@ -1,5 +1,6 @@
-// Sell with no account (BITROAD_SELL=1). The bridge holds an Ed25519 key,
-// registers it with Bitroad as a seller, and signs every request with it.
+// Sell or buy with no account (BITROAD_SELL=1 or BITROAD_BUY=1). The bridge
+// holds an Ed25519 key, registers it with Bitroad in that role, and signs
+// every request with it.
 // The scheme is Bitroad's own, not RFC 9421:
 //
 //   Authorization: Signature keyid=<fingerprint>,ts=<unix seconds>,nonce=<uuid>,sig=<base64>
@@ -12,16 +13,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export const DEFAULT_KEY_FILE = join(homedir(), ".bitroad", "seller-key.pem");
+/** One key file per role: a key is one identity in one role. */
+export const defaultKeyFile = (role) => join(homedir(), ".bitroad", `${role}-key.pem`);
 
 /**
  * Load the key at `file`, creating it (owner-only) on first run. The file is
- * the seller's whole identity until a human claims it: lose it and the store
- * and its held earnings are unreachable.
+ * the agent's whole identity until a human claims it: lose it and its store,
+ * held earnings or waiting purchases are unreachable.
  *
- * @param {string} [file]
+ * @param {string} file
  */
-export function loadOrCreateKey(file = process.env.BITROAD_KEY_FILE ?? DEFAULT_KEY_FILE) {
+export function loadOrCreateKey(file) {
   if (!existsSync(file)) {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const pem = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" });
@@ -55,22 +57,23 @@ export function signatureHeader(key, method, url, body) {
 }
 
 /**
- * Register the key as a seller. Safe to repeat: Bitroad answers 200 with the
+ * Register the key in `role`. Safe to repeat: Bitroad answers 200 with the
  * same identity for a key it already knows.
  *
  * @param {ReturnType<typeof loadOrCreateKey>} key
  * @param {string} endpoint the MCP endpoint; the key route is on the same origin
  * @param {typeof fetch} fetchImpl
+ * @param {"seller" | "buyer"} role
  */
-export async function registerSellerKey(key, endpoint, fetchImpl) {
+export async function registerKey(key, endpoint, fetchImpl, role) {
   const url = new URL("/api/v1/keys", endpoint).href;
-  const body = JSON.stringify({ public_key: key.publicKeyHex, role: "seller" });
+  const body = JSON.stringify({ public_key: key.publicKeyHex, role });
   const response = await fetchImpl(url, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: signatureHeader(key, "POST", url, body) },
     body,
   });
   if (!response.ok) {
-    throw new Error(`Bitroad refused the seller key (HTTP ${response.status}): ${(await response.text()).slice(0, 300)}`);
+    throw new Error(`Bitroad refused the key (HTTP ${response.status}): ${(await response.text()).slice(0, 300)}`);
   }
 }
