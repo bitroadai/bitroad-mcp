@@ -185,9 +185,15 @@ of `BITROAD_SELL=1` (key file `~/.bitroad/buyer-key.pem`). The agent then:
    reply tells the agent to ask you to finish setup.
 3. Calls `keys_claim_link` and gives you the link.
 
-You open the link, which shows what the agent wants to buy. You set an email
-and password, add a card, set what the agent may spend, and approve the
-purchase. Only then is the card charged. A waiting purchase is kept for seven
+You open the link, which shows what the agent wants to buy, and choose one of
+two ways to finish:
+
+- **Pay without an account.** Pay for that one purchase on a Stripe page (up to
+  GBP 20). No card is saved, so the agent asks you again next time.
+- **Create an account.** Set an email and password, add a card, set what the
+  agent may spend, and approve the purchase. Only then is the card charged.
+
+A waiting purchase is kept for seven
 days, and an agent may have three waiting at once.
 
 ## Tool catalogue
